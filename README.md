@@ -68,19 +68,30 @@ docker compose --profile test run --rm smoke
 ## کد کجاست؟
 
 ```
-backend/            API و مدل‌های Django
-  chat/models.py    مدل‌های Room، Membership و Message
-  chat/views.py     endpointهای عمومی و داخلی
-  chat/tests/       تست‌های Django
-realtime/           سرور Node.js و Socket.IO
-  src/socketHandlers.js   مدیریت رویدادها و پیام‌ها
-  src/presence.js         نگهداری وضعیت آنلاین
-  src/heartbeat.js        تازه‌کردن مهلت حضور
-  tests/                  تست‌های realtime
-  scripts/smoke_test.mjs  تست سرتاسری
-frontend/           رابط React با MUI و TanStack Query
-docs/API_CONTRACT.md قرارداد API و رویدادهای WebSocket
-docs/DECISIONS.md   دلیل تصمیم‌های معماری
+backend/                         API و مدل‌های Django
+  config/                        تنظیمات و URLهای اصلی پروژه
+  chat/
+    models.py                    مدل‌های Room، Membership و Message
+    settings.py                  نقش‌های عضویت و محدودیت‌های دامنه
+    serializers.py               اعتبارسنجی و تبدیل دادهٔ API
+    permissions.py               مجوزهای اتاق و سرویس داخلی
+    services/                    عملیات احراز هویت و ذخیرهٔ پیام
+    views/v1/                    viewهای API نسخهٔ ۱، دسته‌بندی‌شده بر اساس کارکرد
+    tests/                       تست‌های Django
+realtime/                        سرور Node.js و Socket.IO
+  src/
+    socketHandlers.js            مدیریت رویدادها و پیام‌ها
+    djangoApi.js                 ارتباط داخلی با Django
+    presence.js                  نگهداری وضعیت آنلاین
+    heartbeat.js                 تازه‌کردن مهلت حضور
+  tests/                         تست‌های realtime
+  scripts/smoke_test.mjs         تست سرتاسری دوکاربره
+frontend/                        رابط React با MUI و TanStack Query
+  src/components/                اجزای رابط کاربری
+  src/hooks/                     اتصال‌های داده و رفتارهای realtime
+  src/lib/                       API، نشست و تنظیمات کلاینت
+docs/API_CONTRACT.md             قرارداد API و رویدادهای WebSocket
+docs/DECISIONS.md                دلیل تصمیم‌های معماری
 ```
 
 ## چند نکته دربارهٔ پیاده‌سازی
@@ -115,6 +126,8 @@ docs/DECISIONS.md   دلیل تصمیم‌های معماری
 
 ## سلامت و گزارش‌ها
 
-- `GET /healthz` سلامت سرویس را گزارش می‌کند. health check سرویس realtime دسترسی به Django را هم می‌سنجد و در صورت مشکل، پاسخ `503` می‌دهد.
-- `GET /readyz` وضعیت آماده‌به‌کار بودن را نشان می‌دهد و `GET /presence?room=<slug>` وضعیت آنلاین یک اتاق را برمی‌گرداند.
-- گزارش‌ها به‌شکل JSON و یک خطی هستند و `request_id` دارند. متن پیام و توکن‌ها در گزارش ثبت نمی‌شوند؛ فقط طول متن پیام ثبت می‌شود.
+<ul dir="rtl">
+  <li><code>GET /healthz</code> سلامت سرویس را گزارش می‌کند. health check سرویس realtime دسترسی به Django را هم می‌سنجد و در صورت مشکل، پاسخ <code>503</code> می‌دهد.</li>
+  <li><code>GET /readyz</code> وضعیت آماده‌به‌کار بودن را نشان می‌دهد و <code>GET /presence?room=&lt;slug&gt;</code> وضعیت آنلاین یک اتاق را برمی‌گرداند.</li>
+  <li>گزارش‌ها به‌شکل JSON و یک‌خطی هستند و <code>request_id</code> دارند. متن پیام و توکن‌ها در گزارش ثبت نمی‌شوند؛ فقط طول متن پیام ثبت می‌شود.</li>
+</ul>
