@@ -1,0 +1,123 @@
+name: realtime-chat-service
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-chat}
+      POSTGRES_USER: ${POSTGRES_USER:-chat}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-chat}
+    ports:
+      - "${POSTGRES_PORT_HOST:-5433}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-chat} -d ${POSTGRES_DB:-chat}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  django-api:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    command: >-
+      gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 3 --threads 2
+      --timeout 60 --access-logfile - --error-logfile -
+    environment:
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-generate-with-python-secrets-token-urlsafe-48}
+      DJANGO_DEBUG: ${DJANGO_DEBUG:-false}
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-*}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      SERVICE_NAME: django-api
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-chat}
+      POSTGRES_USER: ${POSTGRES_USER:-chat}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-chat}
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-internal-service-token}
+      JWT_ACCESS_MINUTES: ${JWT_ACCESS_MINUTES:-30}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173,http://localhost:8080}
+      RUN_MIGRATIONS: "true"
+      SEED_DEMO_DATA: ${SEED_DEMO_DATA:-false}
+    ports:
+      - "${DJANGO_API_PORT:-8000}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  realtime:
+    build:
+      context: ./realtime
+      target: runtime
+    restart: unless-stopped
+    environment:
+      PORT: 4000
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      SERVICE_NAME: realtime-service
+      DJANGO_API_URL: http://django-api:8000
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-internal-service-token}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173,http://localhost:8080}
+      MAX_MESSAGE_LENGTH: ${MAX_MESSAGE_LENGTH:-4000}
+      RATE_LIMIT_WINDOW_MS: ${RATE_LIMIT_WINDOW_MS:-10000}
+      RATE_LIMIT_MAX_MESSAGES: ${RATE_LIMIT_MAX_MESSAGES:-20}
+      PRESENCE_TTL_MS: ${PRESENCE_TTL_MS:-90000}
+      PRESENCE_SWEEP_INTERVAL_MS: ${PRESENCE_SWEEP_INTERVAL_MS:-15000}
+      # Keep PRESENCE_TTL_MS comfortably above HEARTBEAT_INTERVAL_MS: the
+      # heartbeat is what refreshes a connected user's presence entry.
+      HEARTBEAT_INTERVAL_MS: ${HEARTBEAT_INTERVAL_MS:-25000}
+      DJANGO_TIMEOUT_MS: ${DJANGO_TIMEOUT_MS:-5000}
+      MAX_BUFFER_BYTES: ${MAX_BUFFER_BYTES:-1000000}
+    ports:
+      - "${REALTIME_PORT:-4000}:4000"
+    depends_on:
+      django-api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4000/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000}
+        VITE_SOCKET_URL: ${VITE_SOCKET_URL:-http://localhost:4000}
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-5173}:80"
+    depends_on:
+      - realtime
+
+  # Two-user end-to-end check: docker compose --profile test run --rm smoke
+  smoke:
+    build:
+      context: ./realtime
+      target: smoke
+    profiles: ["test"]
+    environment:
+      API_BASE_URL: http://django-api:8000
+      SOCKET_URL: http://realtime:4000
+      USER_A: ${SMOKE_USER_A:-ali}
+      PASSWORD_A: ${SMOKE_PASSWORD_A:-ali12345}
+      USER_B: ${SMOKE_USER_B:-sara}
+      PASSWORD_B: ${SMOKE_PASSWORD_B:-sara12345}
+    depends_on:
+      django-api:
+        condition: service_healthy
+      realtime:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
