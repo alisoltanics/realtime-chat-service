@@ -2,6 +2,8 @@
 
 این سند شکل درخواست‌ها و پاسخ‌هایی را توضیح می‌دهد که Django، سرویس realtime و رابط کاربری با هم ردوبدل می‌کنند. بدنهٔ همهٔ درخواست‌ها و پاسخ‌ها JSON است. زمان‌ها با قالب ISO 8601 و منطقهٔ زمانی UTC برگردانده می‌شوند.
 
+نسخهٔ فعال API در مسیر `/api/v1/` منتشر می‌شود و در تنظیمات DRF با `URLPathVersioning` به‌عنوان `request.version = "v1"` شناخته می‌شود. مسیرهای بدون نسخهٔ `/api/...` فعلاً alias سازگار برای کلاینت‌های قدیمی هستند؛ کلاینت‌های جدید باید از `/api/v1/...` استفاده کنند. نسخه‌های اعلام‌نشده با خطای `406` رد می‌شوند.
+
 ---
 
 ## ۰. قالب خطاها
@@ -30,11 +32,11 @@ Authorization: Bearer <access_token>
 
 | متد | مسیر | توضیح |
 |-----|------|-------|
-| POST | `/api/auth/register/` | `{username, password, display_name?}` → `201` با `user` و `access`/`refresh` |
-| POST | `/api/auth/login/` | `{username, password}` → `200` با `user` و `access`/`refresh` |
-| POST | `/api/auth/token/` | همان `login` با نام متداول simplejwt |
-| POST | `/api/auth/refresh/` | `{refresh}` → `200` با `access` جدید |
-| GET | `/api/auth/me/` | کاربر جاری |
+| POST | `/api/v1/auth/register/` | `{username, password, display_name?}` → `201` با `user` و `access`/`refresh` |
+| POST | `/api/v1/auth/login/` | `{username, password}` → `200` با `user` و `access`/`refresh` |
+| POST | `/api/v1/auth/token/` | همان `login` با نام متداول simplejwt |
+| POST | `/api/v1/auth/refresh/` | `{refresh}` → `200` با `access` جدید |
+| GET | `/api/v1/auth/me/` | کاربر جاری |
 
 پاسخ ورود:
 
@@ -51,15 +53,15 @@ Authorization: Bearer <access_token>
 
 | متد | مسیر | توضیح |
 |-----|------|-------|
-| GET | `/api/rooms/` | اتاق‌های عمومی + اتاق‌های خصوصی که عضو آن هستید |
-| POST | `/api/rooms/` | `{name, is_public?}` → سازنده `admin` می‌شود و عضو هم هست |
-| GET | `/api/rooms/<slug>/` | جزئیات اتاق؛ غیرعضو اتاق خصوصی `403` |
-| POST | `/api/rooms/<slug>/join/` | عضویت در اتاق عمومی |
-| POST | `/api/rooms/<slug>/leave/` | خروج از اتاق |
-| GET | `/api/rooms/<slug>/members/` | اعضا (فقط برای کسانی که `can_read` دارند) |
-| POST | `/api/rooms/<slug>/members/` | **افزودن عضو، فقط ادمین اتاق**: `{username}` یا `{user_id}` |
-| GET | `/api/rooms/<slug>/messages/` | تاریخچهٔ پیام‌ها (صفحه‌بندی keyset) |
-| POST | `/api/rooms/<slug>/messages/` | مسیر جایگزین REST برای ارسال پیام |
+| GET | `/api/v1/rooms/` | اتاق‌های عمومی + اتاق‌های خصوصی که عضو آن هستید |
+| POST | `/api/v1/rooms/` | `{name, is_public?}` → سازنده `admin` می‌شود و عضو هم هست |
+| GET | `/api/v1/rooms/<slug>/` | جزئیات اتاق؛ غیرعضو اتاق خصوصی `403` |
+| POST | `/api/v1/rooms/<slug>/join/` | عضویت در اتاق عمومی |
+| POST | `/api/v1/rooms/<slug>/leave/` | خروج از اتاق |
+| GET | `/api/v1/rooms/<slug>/members/` | اعضا (فقط برای کسانی که `can_read` دارند) |
+| POST | `/api/v1/rooms/<slug>/members/` | **افزودن عضو، فقط ادمین اتاق**: `{username}` یا `{user_id}` |
+| GET | `/api/v1/rooms/<slug>/messages/` | تاریخچهٔ پیام‌ها (صفحه‌بندی keyset) |
+| POST | `/api/v1/rooms/<slug>/messages/` | مسیر جایگزین REST برای ارسال پیام |
 
 مقدار `slug` به‌طور خودکار از `name` ساخته می‌شود و در میان اتاق‌ها یکتا است.
 
@@ -73,7 +75,7 @@ Authorization: Bearer <access_token>
 ### دریافت تاریخچه با صفحه‌بندی
 
 ```
-GET /api/rooms/<slug>/messages/?limit=30&before_id=1234
+GET /api/v1/rooms/<slug>/messages/?limit=30&before_id=1234
 ```
 
 پیام‌ها بر اساس `id` نزولی انتخاب می‌شوند، اما پاسخ آن‌ها را **از قدیمی به جدید** مرتب می‌کند. بنابراین آخرین مورد فهرست، جدیدترین پیام همان صفحه است:
@@ -94,7 +96,7 @@ GET /api/rooms/<slug>/messages/?limit=30&before_id=1234
 ### ارسال پیام از راه REST
 
 ```
-POST /api/rooms/<slug>/messages/
+POST /api/v1/rooms/<slug>/messages/
 { "text": "سلام", "client_id": "web-1712-ab" }
 ```
 
@@ -116,10 +118,10 @@ X-Service-Token: <INTERNAL_SERVICE_TOKEN>
 
 | متد | مسیر | کاربرد |
 |-----|------|--------|
-| POST | `/api/internal/verify-token/` | `{token}` → هویت کاربر یا `401` |
-| POST | `/api/internal/authorize-room/` | `{token, room}` → هویت + مجوز اتاق یا `403` |
-| POST | `/api/internal/messages/` | ذخیرهٔ پیام با `sender` تعیین‌شده توسط سرور |
-| GET | `/api/internal/room-members/?room=<slug>` | شناسهٔ اعضای اتاق برای presence |
+| POST | `/api/v1/internal/verify-token/` | `{token}` → هویت کاربر یا `401` |
+| POST | `/api/v1/internal/authorize-room/` | `{token, room}` → هویت + مجوز اتاق یا `403` |
+| POST | `/api/v1/internal/messages/` | ذخیرهٔ پیام با `sender` تعیین‌شده توسط سرور |
+| GET | `/api/v1/internal/room-members/?room=<slug>` | شناسهٔ اعضای اتاق برای presence |
 
 `verify-token`:
 

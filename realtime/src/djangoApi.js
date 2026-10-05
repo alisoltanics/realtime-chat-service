@@ -45,7 +45,7 @@ async function request(path, { method = "GET", body } = {}) {
 
 /** Resolve the browser JWT to a user. Returns null when the token is invalid/expired. */
 export async function verifyToken(token) {
-  const { ok, status, payload } = await request("/api/internal/verify-token/", {
+  const { ok, status, payload } = await request("/api/v1/internal/verify-token/", {
     method: "POST",
     body: { token },
   });
@@ -57,7 +57,7 @@ export async function verifyToken(token) {
 
 /** Authorize a socket room join for a given token. */
 export async function authorizeRoom(token, roomSlug) {
-  const { ok, status, payload } = await request("/api/internal/authorize-room/", {
+  const { ok, status, payload } = await request("/api/v1/internal/authorize-room/", {
     method: "POST",
     body: { token, room: roomSlug },
   });
@@ -74,7 +74,7 @@ export async function authorizeRoom(token, roomSlug) {
 
 /** Persist a message through Django; idempotent for a given (room, sender, client_id). */
 export async function persistMessage({ roomId, senderId, text, clientId }) {
-  const { ok, status, payload } = await request("/api/internal/messages/", {
+  const { ok, status, payload } = await request("/api/v1/internal/messages/", {
     method: "POST",
     body: { room_id: roomId, sender_id: senderId, text, client_id: clientId ?? "" },
   });
@@ -85,6 +85,6 @@ export async function persistMessage({ roomId, senderId, text, clientId }) {
 }
 
 export async function healthCheck() {
-  const { ok, payload } = await request("/api/healthz");
+  const { ok, payload } = await request("/api/v1/healthz");
   return { ok, status: payload?.status ?? "unknown", database: payload?.database ?? "unknown" };
 }

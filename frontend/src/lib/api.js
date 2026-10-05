@@ -86,20 +86,20 @@ export async function apiFetch(path, { method = "GET", body, token, signal } = {
 }
 
 export const endpoints = {
-  register: (payload) => apiFetch("/api/auth/register/", { method: "POST", body: payload }),
-  login: (payload) => apiFetch("/api/auth/login/", { method: "POST", body: payload }),
-  refresh: (refresh) => apiFetch("/api/auth/refresh/", { method: "POST", body: { refresh } }),
-  me: (token, signal) => apiFetch("/api/auth/me/", { token, signal }),
-  rooms: (token, signal) => apiFetch("/api/rooms/", { token, signal }),
-  createRoom: (token, payload) => apiFetch("/api/rooms/", { method: "POST", body: payload, token }),
-  room: (token, slug, signal) => apiFetch(`/api/rooms/${slug}/`, { token, signal }),
-  joinRoom: (token, slug) => apiFetch(`/api/rooms/${slug}/join/`, { method: "POST", token }),
-  leaveRoom: (token, slug) => apiFetch(`/api/rooms/${slug}/leave/`, { method: "POST", token }),
+  register: (payload) => apiFetch("/api/v1/auth/register/", { method: "POST", body: payload }),
+  login: (payload) => apiFetch("/api/v1/auth/login/", { method: "POST", body: payload }),
+  refresh: (refresh) => apiFetch("/api/v1/auth/refresh/", { method: "POST", body: { refresh } }),
+  me: (token, signal) => apiFetch("/api/v1/auth/me/", { token, signal }),
+  rooms: (token, signal) => apiFetch("/api/v1/rooms/", { token, signal }),
+  createRoom: (token, payload) => apiFetch("/api/v1/rooms/", { method: "POST", body: payload, token }),
+  room: (token, slug, signal) => apiFetch(`/api/v1/rooms/${slug}/`, { token, signal }),
+  joinRoom: (token, slug) => apiFetch(`/api/v1/rooms/${slug}/join/`, { method: "POST", token }),
+  leaveRoom: (token, slug) => apiFetch(`/api/v1/rooms/${slug}/leave/`, { method: "POST", token }),
   messages: (token, slug, { beforeId, limit = 30, signal } = {}) => {
     const params = new URLSearchParams({ limit: String(limit) });
     if (beforeId) params.set("before_id", String(beforeId));
-    return apiFetch(`/api/rooms/${slug}/messages/?${params}`, { token, signal });
+    return apiFetch(`/api/v1/rooms/${slug}/messages/?${params}`, { token, signal });
   },
   postMessage: (token, slug, payload) =>
-    apiFetch(`/api/rooms/${slug}/messages/`, { method: "POST", body: payload, token }),
+    apiFetch(`/api/v1/rooms/${slug}/messages/`, { method: "POST", body: payload, token }),
 };

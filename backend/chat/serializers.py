@@ -49,7 +49,11 @@ class RoomSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "slug", "created_at"]
 
     def get_last_message(self, obj):
-        message = obj.messages.order_by("-id").first()
+        prefetched = getattr(obj, "latest_messages", None)
+        if prefetched is not None:
+            message = prefetched[0] if prefetched else None
+        else:
+            message = obj.messages.select_related("sender").order_by("-id").first()
         if message is None:
             return None
         return {

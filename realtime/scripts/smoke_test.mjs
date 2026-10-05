@@ -36,7 +36,7 @@ const fail = (message) => {
 };
 
 async function login(credentials) {
-  const response = await fetch(`${API}/api/auth/login/`, {
+  const response = await fetch(`${API}/api/v1/auth/login/`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(credentials),
@@ -107,7 +107,7 @@ async function main() {
   const socketB = await connect(sessionB.access);
   ok("both sockets connected");
 
-  const rooms = await fetch(`${API}/api/rooms/`, {
+  const rooms = await fetch(`${API}/api/v1/rooms/`, {
     headers: { authorization: `Bearer ${sessionA.access}` },
   }).then((response) => response.json());
   const room = rooms.results.find((item) => item.is_public) ?? rooms.results[0];
@@ -139,13 +139,13 @@ async function main() {
   ok(`message id=${forA.message.id} delivered live to both clients`);
 
   step("5/8 re-sending the same clientId is idempotent (no duplicate row)");
-  const before = await fetch(`${API}/api/rooms/${slug}/messages/?limit=100`, {
+  const before = await fetch(`${API}/api/v1/rooms/${slug}/messages/?limit=100`, {
     headers: { authorization: `Bearer ${sessionA.access}` },
   }).then((response) => response.json());
   const countBefore = before.results.filter((item) => item.client_id === clientId).length;
   await emit(socketA, "message:send", { room: slug, text, clientId });
   await new Promise((resolve) => setTimeout(resolve, 700));
-  const after = await fetch(`${API}/api/rooms/${slug}/messages/?limit=100`, {
+  const after = await fetch(`${API}/api/v1/rooms/${slug}/messages/?limit=100`, {
     headers: { authorization: `Bearer ${sessionA.access}` },
   }).then((response) => response.json());
   const countAfter = after.results.filter((item) => item.client_id === clientId).length;
@@ -154,12 +154,12 @@ async function main() {
   ok(`exactly one stored message for clientId ${clientId}`);
 
   step("6/8 history pagination through the REST API");
-  const page = await fetch(`${API}/api/rooms/${slug}/messages/?limit=5`, {
+  const page = await fetch(`${API}/api/v1/rooms/${slug}/messages/?limit=5`, {
     headers: { authorization: `Bearer ${sessionA.access}` },
   }).then((response) => response.json());
   assert.equal(page.results.length, 5, "expected a 5 message page");
   assert.ok(page.next_before_id !== null, "expected a next cursor");
-  const older = await fetch(`${API}/api/rooms/${slug}/messages/?limit=5&before_id=${page.next_before_id}`, {
+  const older = await fetch(`${API}/api/v1/rooms/${slug}/messages/?limit=5&before_id=${page.next_before_id}`, {
     headers: { authorization: `Bearer ${sessionA.access}` },
   }).then((response) => response.json());
   const maxIdFirstPage = Math.max(...page.results.map((item) => item.id));
@@ -168,7 +168,7 @@ async function main() {
   ok(`page 1 newest id=${maxIdFirstPage}, page 2 newest id=${maxIdOlder}`);
 
   step("7/8 share a private room: admin adds a member, both exchange messages");
-  const created = await fetch(`${API}/api/rooms/`, {
+  const created = await fetch(`${API}/api/v1/rooms/`, {
     method: "POST",
     headers: {
       authorization: `Bearer ${sessionA.access}`,
@@ -182,7 +182,7 @@ async function main() {
   const privateSlug = created.slug;
   if (created.is_public !== false) fail("created room is not private");
 
-  const beforeInvite = await fetch(`${API}/api/rooms/`, {
+  const beforeInvite = await fetch(`${API}/api/v1/rooms/`, {
     headers: { authorization: `Bearer ${sessionB.access}` },
   }).then((response) => response.json());
   assert.ok(
@@ -190,7 +190,7 @@ async function main() {
     "private room leaked into another user's list"
   );
 
-  const invited = await fetch(`${API}/api/rooms/${privateSlug}/members/`, {
+  const invited = await fetch(`${API}/api/v1/rooms/${privateSlug}/members/`, {
     method: "POST",
     headers: {
       authorization: `Bearer ${sessionA.access}`,
