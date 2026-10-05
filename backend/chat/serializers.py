@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
-from .models import Membership, Message, Room
+from .models import MAX_MESSAGE_LENGTH, Membership, Message, Room
 
 
 class UserSerializer(serializers.Serializer):
@@ -86,8 +86,10 @@ class MessageSerializer(serializers.ModelSerializer):
         value = value.strip()
         if not value:
             raise serializers.ValidationError("text is empty")
-        if len(value) > 4000:
-            raise serializers.ValidationError("text is too long (max 4000 chars)")
+        if len(value) > MAX_MESSAGE_LENGTH:
+            raise serializers.ValidationError(
+                f"text is too long (max {MAX_MESSAGE_LENGTH} chars)"
+            )
         return value
 
 
@@ -96,7 +98,7 @@ class MessageCreateSerializer(serializers.Serializer):
 
     room_id = serializers.IntegerField(min_value=1)
     sender_id = serializers.IntegerField(min_value=1)
-    text = serializers.CharField(max_length=4000, trim_whitespace=True)
+    text = serializers.CharField(max_length=MAX_MESSAGE_LENGTH, trim_whitespace=True)
     client_id = serializers.CharField(max_length=64, required=False, allow_blank=True, default="")
 
     def validate_text(self, value):
