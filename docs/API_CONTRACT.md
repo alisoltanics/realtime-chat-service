@@ -1,19 +1,18 @@
 # قرارداد API و رویدادهای WebSocket
 
-این سند قراردادی است که هر دو سرویس بر اساس آن پیاده‌سازی شده‌اند. تمام بدنه‌ها JSON هستند.
-زمان‌ها ISO-8601 با منطقهٔ زمانی UTC.
+این سند شکل درخواست‌ها و پاسخ‌هایی را توضیح می‌دهد که Django، سرویس realtime و رابط کاربری با هم ردوبدل می‌کنند. بدنهٔ همهٔ درخواست‌ها و پاسخ‌ها JSON است. زمان‌ها با قالب ISO 8601 و منطقهٔ زمانی UTC برگردانده می‌شوند.
 
 ---
 
-## ۰. شکل خطاها
+## ۰. قالب خطاها
 
-همهٔ خطاهای REST (چه دستی نوشته شده باشند چه توسط DRF تولید شده باشند) یک پوشش دارند:
+همهٔ خطاهای REST، چه در کد برنامه ساخته شوند و چه DRF آن‌ها را برگرداند، از قالب زیر پیروی می‌کنند:
 
 ```json
 { "error": { "code": "not_found", "detail": "No Room matches the given query." } }
 ```
 
-`detail` همیشه رشته است، مگر در خطاهای اعتبارسنجی فیلد که به شکل
+مقدار `detail` معمولاً یک رشته است. در خطاهای اعتبارسنجی، جزئیات به تفکیک فیلد برمی‌گردند؛ برای نمونه:
 `{"text": ["This field may not be blank."]}` برمی‌گردد. کدهای پرکاربرد:
 `not_authenticated`، `invalid_credentials`، `conflict`، `validation_error`،
 `not_found`، `permission_denied`، `room_private`، `user_not_found`،
@@ -21,9 +20,9 @@
 
 ---
 
-## ۱. احراز هویت (عمومی)
+## ۱. احراز هویت کاربران
 
-تمام endpointهای کاربر با هدر زیر احراز هویت می‌شوند:
+برای دسترسی به endpointهای نیازمند ورود، توکن دسترسی را در هدر زیر بفرستید:
 
 ```
 Authorization: Bearer <access_token>
@@ -48,7 +47,7 @@ Authorization: Bearer <access_token>
 
 ---
 
-## ۲. اتاق‌ها (عمومی)
+## ۲. اتاق‌ها
 
 | متد | مسیر | توضیح |
 |-----|------|-------|
@@ -62,7 +61,7 @@ Authorization: Bearer <access_token>
 | GET | `/api/rooms/<slug>/messages/` | تاریخچهٔ پیام‌ها (صفحه‌بندی keyset) |
 | POST | `/api/rooms/<slug>/messages/` | مسیر جایگزین REST برای ارسال پیام |
 
-`slug` به‌صورت خودکار از `name` ساخته می‌شود و یکتا است.
+مقدار `slug` به‌طور خودکار از `name` ساخته می‌شود و در میان اتاق‌ها یکتا است.
 
 ### شکل اتاق
 
@@ -71,14 +70,13 @@ Authorization: Bearer <access_token>
   "member_count": 2, "last_message": { "text": "سلام", "sender": "ali", "created_at": "..." } }
 ```
 
-### صفحه‌بندی تاریخچه
+### دریافت تاریخچه با صفحه‌بندی
 
 ```
 GET /api/rooms/<slug>/messages/?limit=30&before_id=1234
 ```
 
-پیام‌ها بر اساس `id` نزولی انتخاب و سپس **از قدیم به جدید** برگردانده می‌شوند (آخرین آیتم،
-جدیدترین پیام صفحه است):
+پیام‌ها بر اساس `id` نزولی انتخاب می‌شوند، اما پاسخ آن‌ها را **از قدیمی به جدید** مرتب می‌کند. بنابراین آخرین مورد فهرست، جدیدترین پیام همان صفحه است:
 
 ```json
 { "results": [ { "id": 3, "room": 1, "sender": { "id": 1, "username": "ali" },
@@ -88,35 +86,33 @@ GET /api/rooms/<slug>/messages/?limit=30&before_id=1234
   "next_before_id": 3 }
 ```
 
-`before_id` نقطهٔ شروع صفحهٔ بعدی است (پیام‌های قدیمی‌تر). `next_before_id` وقتی
-`has_more` برابر `false` است `null` خواهد بود.
+برای دریافت صفحهٔ قدیمی‌تر، مقدار `next_before_id` پاسخ را در درخواست بعدی به‌عنوان `before_id` بفرستید. وقتی `has_more` برابر `false` باشد، مقدار `next_before_id` برابر `null` است.
 
 - `limit` پیش‌فرض ۳۰، بیشینه ۱۰۰.
 - `before_id` نامعتبر → `400` با `{"error": {"code": "invalid_cursor"}}`.
 
-### ارسال پیام از طریق REST
+### ارسال پیام از راه REST
 
 ```
 POST /api/rooms/<slug>/messages/
 { "text": "سلام", "client_id": "web-1712-ab" }
 ```
 
-- `201` پیام جدید ساخته شد، `200` پیام قبلی با همان `client_id` برگردانده شد
-  (idempotency).
-- اگر `client_id` خالی باشد، **هر درخواست یک پیام جدید می‌سازد** (چون کلید idempotency
-  وجود ندارد).
+- پاسخ `201` یعنی پیام تازه‌ای ساخته شده است. پاسخ `200` یعنی پیام دیگری با همان `client_id` قبلاً ثبت شده و همان پیام برگردانده شده است.
+- اگر `client_id` ارسال نشود یا خالی باشد، هر درخواست پیام تازه‌ای می‌سازد؛ در این حالت امکان تشخیص ارسال تکراری وجود ندارد.
 
 ---
 
-## ۳. API داخلی (فقط سرویس realtime)
+## ۳. API داخلی سرویس realtime
 
-این endpointها با هدر زیر محافظت می‌شوند:
+این endpointها فقط برای ارتباط سرویس realtime با Django هستند و با هدر زیر محافظت می‌شوند:
 
 ```
 X-Service-Token: <INTERNAL_SERVICE_TOKEN>
 ```
 
-مقدار اشتباه یا غایب → `403` (`{"error": {"code": "service_token_invalid"}}`).
+اگر هدر وجود نداشته باشد یا توکن آن معتبر نباشد، پاسخ `403` برمی‌گردد:
+`{"error": {"code": "service_token_invalid"}}`.
 
 | متد | مسیر | کاربرد |
 |-----|------|--------|
@@ -134,8 +130,7 @@ X-Service-Token: <INTERNAL_SERVICE_TOKEN>
 { "error": { "code": "invalid_token", "detail": "..." } }
 ```
 
-`authorize-room` همیشه `200` برمی‌گرداند مگر توکن/اتاق نامعتبر باشد؛ مجوز در بدنهٔ پاسخ
-می‌آید و سرویس realtime بر اساس `can_read` تصمیم می‌گیرد:
+درخواست معتبر به `authorize-room` پاسخ `200` می‌گیرد. اطلاعات مجوز در بدنهٔ پاسخ است و سرویس realtime بر اساس مقدار `can_read` تصمیم می‌گیرد:
 
 ```json
 { "user": { "id": 1, "username": "ali", "display_name": "علی" },
@@ -143,10 +138,9 @@ X-Service-Token: <INTERNAL_SERVICE_TOKEN>
   "access": { "can_read": true, "is_member": true } }
 ```
 
-`room-members` بر اساس `slug` جست‌وجو می‌کند و `{"room_id", "member_ids"}` برمی‌گرداند.
+`room-members` اتاق را با `slug` پیدا می‌کند و `room_id` و `member_ids` را برمی‌گرداند.
 
-`internal/messages` فرستنده را از بدنه می‌گیرد و **به درخواست‌کنندهٔ عمومی اجازهٔ تعیین آن را
-نمی‌دهد**؛ فقط سرویس realtime که توکن مشترک دارد می‌تواند این مسیر را صدا بزند:
+در `internal/messages`، شناسهٔ فرستنده در بدنهٔ درخواست قرار دارد. این مسیر فقط با توکن داخلی در دسترس سرویس realtime است و کاربر عادی نمی‌تواند آن را فراخوانی کند:
 
 ```json
 // درخواست
@@ -168,12 +162,11 @@ X-Service-Token: <INTERNAL_SERVICE_TOKEN>
 io(SOCKET_URL, { auth: { token: accessToken } });
 ```
 
-بدون توکن معتبر، handshake رد می‌شود (`connect_error` با پیام `missing_token` یا
-`invalid_token`) و اتصال اصلاً برقرار نمی‌شود.
+اگر توکن وجود نداشته باشد یا معتبر نباشد، فرایند handshake رد می‌شود و اتصال شکل نمی‌گیرد. کلاینت رویداد `connect_error` را با پیام `missing_token` یا `invalid_token` دریافت می‌کند.
 
 ### رویدادهای کلاینت → سرور
 
-همه با callback تأیید (ack) پاسخ داده می‌شوند: `({ ok, error?, ... })`.
+سرور برای هر رویداد با callback تأیید (ack) پاسخ می‌دهد. شکل کلی پاسخ چنین است: `({ ok, error?, ... })`.
 
 | رویداد | payload | ack موفق |
 |--------|---------|----------|
@@ -182,12 +175,11 @@ io(SOCKET_URL, { auth: { token: accessToken } });
 | `message:send` | `{room, text, clientId}` | `{ok:true, message}` |
 | `presence:heartbeat` | `{}` | `{ok:true}` |
 
-پیام خطا در ack برمی‌گردد: `{ok:false, error:{code}}`. کدهای خطا:
+در صورت خطا، ack به شکل `{ok:false, error:{code}}` است. کدهای شناخته‌شده عبارت‌اند از:
 `invalid_room`، `forbidden`، `identity_mismatch`، `unauthenticated`، `not_in_room`،
 `invalid_text`، `text_too_long`، `rate_limited`، `persist_failed`، `internal_error`.
 
-`clientId` اختیاری است؛ حداکثر طول آن ۶۴ کاراکتر است و مقادیر نامعتبر به `null` تبدیل
-می‌شوند.
+ارسال `clientId` اختیاری است. طول آن حداکثر ۶۴ نویسه است؛ مقدار نامعتبر به `null` تبدیل می‌شود.
 
 ### رویدادهای سرور → کلاینت
 
@@ -203,8 +195,7 @@ io(SOCKET_URL, { auth: { token: accessToken } });
 | `session:expired` | `{}` |
 | `error` | `{event, code}` |
 
-`presence` در `room:joined` آرایه‌ای از `{id}` است، ولی `onlineUserIds` در
-`presence:update` آرایه‌ای از رشته است.
+در رویداد `room:joined`، مقدار `presence` آرایه‌ای از شیءهای `{id}` است. در `presence:update`، مقدار `onlineUserIds` آرایه‌ای از رشته‌هاست.
 
 ### شکل پیام
 
@@ -216,7 +207,7 @@ io(SOCKET_URL, { auth: { token: accessToken } });
 
 ---
 
-## ۵. قواعد تضمین‌شده
+## ۵. رفتارهای تضمین‌شده
 
 1. **ذخیره قبل از انتشار:** `message:new` فقط پس از ذخیرهٔ موفق در Django پخش می‌شود.
 2. **idempotency:** ارسال دوبارهٔ همان `clientId` پیام جدیدی نمی‌سازد؛ همان پیام قبلی
@@ -224,5 +215,4 @@ io(SOCKET_URL, { auth: { token: accessToken } });
 3. **هویت از سرور:** `sender` را کلاینت تعیین نمی‌کند.
 4. **حریم خصوصی:** عضویت در اتاق خصوصی بدون عضو بودن در آن `403` می‌گیرد، هم در REST و هم
    در `room:join`.
-5. **حضور:** کاربر تا `PRESENCE_TTL_MS` پس از آخرین heartbeat در `presence:update` باقی
-   می‌ماند؛ قطع اتصال بلافاصله آن را حذف می‌کند.
+5. **وضعیت آنلاین:** کاربر پس از آخرین heartbeat، حداکثر تا `PRESENCE_TTL_MS` آنلاین می‌ماند. با قطع اتصال، وضعیت او بلافاصله حذف می‌شود.
