@@ -4,7 +4,6 @@
 
 جریان پیام ساده است: مرورگر پیام را به سرویس realtime می‌فرستد، سرویس آن را برای ذخیره به Django می‌دهد و بعد از ذخیرهٔ موفق، پیام را برای اعضای اتاق پخش می‌کند.
 
-<p dir="rtl">API در مسیر <code>/api/v1/</code> نسخه‌بندی شده است. مسیرهای قدیمی <code>/api/</code> فعلاً برای سازگاری در دسترس‌اند؛ مسیرها و payloadها در <a href="https://github.com/alisoltanics/realtime-chat-service/blob/master/docs/API_CONTRACT.md">قرارداد API</a> آمده‌اند.</p>
 
 ```
 ┌──────────────┐   REST (JWT)   ┌──────────────┐   ORM    ┌────────────┐
