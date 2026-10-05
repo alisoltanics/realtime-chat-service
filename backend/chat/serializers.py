@@ -7,7 +7,7 @@ from .settings import MAX_MESSAGE_LENGTH
 
 
 def latest_message_prefetch():
-    """Build the shared one-query prefetch for each room's latest message."""
+    """Prefetch each room's newest message and its sender in one query."""
     return Prefetch(
         "messages",
         queryset=Message.objects.select_related("sender").order_by("-id")[:1],

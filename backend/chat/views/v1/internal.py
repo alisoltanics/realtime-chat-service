@@ -7,24 +7,12 @@ from rest_framework.views import APIView
 
 from ...logging import get_logger
 from ...models import Membership, Message, Room
-from ...permissions import HasServiceToken
-from ...serializers import MessageCreateSerializer, MessageSerializer
-from .common import _error_response, _persist_message, _public_user, can_read_room
+from ...permissions import HasServiceToken, can_read_room
+from ...serializers import MessageCreateSerializer, MessageSerializer, UserSerializer
+from ...services import persist_message, resolve_access_token
+from .common import _error_response
 
 logger = get_logger("django-api.chat")
-
-
-def _decode_access_token(token):
-    from rest_framework_simplejwt.exceptions import TokenError
-    from rest_framework_simplejwt.tokens import AccessToken
-
-    try:
-        return AccessToken(token), None
-    except TokenError:
-        return None, Response(
-            {"error": {"code": "invalid_token", "detail": "token is invalid or expired"}},
-            status=status.HTTP_401_UNAUTHORIZED,
-        )
 
 
 class InternalAPIView(APIView):
@@ -43,17 +31,20 @@ class InternalVerifyTokenView(InternalAPIView):
             return _error_response(
                 "invalid_token", "token is required", status.HTTP_400_BAD_REQUEST
             )
-        access, error = _decode_access_token(token)
-        if error is not None:
-            return error
-        user = get_user_model().objects.filter(pk=access["user_id"]).first()
-        if user is None or not user.is_active:
+        access, user = resolve_access_token(token)
+        if access is None:
+            return _error_response(
+                "invalid_token",
+                "token is invalid or expired",
+                status.HTTP_401_UNAUTHORIZED,
+            )
+        if user is None:
             return _error_response(
                 "invalid_token",
                 "user not found or inactive",
                 status.HTTP_401_UNAUTHORIZED,
             )
-        return Response({"user": _public_user(user)})
+        return Response({"user": UserSerializer(user).data})
 
 
 class InternalAuthorizeRoomView(InternalAPIView):
@@ -62,19 +53,22 @@ class InternalAuthorizeRoomView(InternalAPIView):
     def post(self, request):
         token = str(request.data.get("token", "")).strip()
         slug = str(request.data.get("room", "")).strip().lower()
-        access, error = _decode_access_token(token)
-        if error is not None:
-            return error
-        user = get_user_model().objects.filter(pk=access["user_id"]).first()
+        access, user = resolve_access_token(token)
+        if access is None:
+            return _error_response(
+                "invalid_token",
+                "token is invalid or expired",
+                status.HTTP_401_UNAUTHORIZED,
+            )
         room = Room.objects.filter(slug=slug).first()
-        if user is None or not user.is_active or room is None:
+        if user is None or room is None:
             return _error_response(
                 "forbidden", "unknown user or room", status.HTTP_403_FORBIDDEN
             )
         membership = Membership.objects.filter(room=room, user=user).first()
         return Response(
             {
-                "user": _public_user(user),
+                "user": UserSerializer(user).data,
                 "room": {
                     "id": room.id,
                     "slug": room.slug,
@@ -113,7 +107,7 @@ class InternalCreateMessageView(InternalAPIView):
             )
 
         client_id = data.get("client_id") or ""
-        message, created = _persist_message(
+        message, created = persist_message(
             room=room,
             sender=sender,
             text=data["text"],

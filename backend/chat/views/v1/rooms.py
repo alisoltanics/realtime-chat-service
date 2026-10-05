@@ -3,6 +3,7 @@
 from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.db.models import Count, Q
+from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -10,7 +11,7 @@ from rest_framework.views import APIView
 
 from ...logging import get_logger
 from ...models import Membership, Message, Room
-from ...permissions import HasRoomReadAccess
+from ...permissions import HasRoomReadAccess, can_read_room
 from ...serializers import (
     MembershipSerializer,
     MessageCreateSerializer,
@@ -19,6 +20,7 @@ from ...serializers import (
     RoomSerializer,
     latest_message_prefetch,
 )
+from ...services import persist_message
 from ...settings import MembershipRole
 from .common import (
     MAX_MESSAGE_PAGE_SIZE,
@@ -27,9 +29,6 @@ from .common import (
     ROOM_PRIVATE_ERROR,
     _error_response,
     _message_page,
-    _persist_message,
-    can_read_room,
-    get_room_or_404,
 )
 
 logger = get_logger("django-api.chat")
@@ -39,6 +38,10 @@ def room_queryset_with_annotations():
     return Room.objects.annotate(
         member_count=Count("memberships", distinct=True),
     ).prefetch_related(latest_message_prefetch())
+
+
+def _get_room_or_404(slug):
+    return get_object_or_404(Room, slug=slug)
 
 
 class RoomListCreateView(APIView):
@@ -69,7 +72,7 @@ class RoomDetailView(APIView):
     permission_classes = [IsAuthenticated, HasRoomReadAccess]
 
     def get(self, request, slug):
-        room = get_room_or_404(slug)
+        room = _get_room_or_404(slug)
         self.check_object_permissions(request, room)
         room = room_queryset_with_annotations().get(pk=room.pk)
         return Response(RoomSerializer(room).data)
@@ -77,7 +80,7 @@ class RoomDetailView(APIView):
 
 class RoomJoinView(APIView):
     def post(self, request, slug):
-        room = get_room_or_404(slug)
+        room = _get_room_or_404(slug)
         if not room.is_public and not Membership.objects.filter(
             room=room, user=request.user
         ).exists():
@@ -104,14 +107,14 @@ class RoomJoinView(APIView):
 
 class RoomLeaveView(APIView):
     def post(self, request, slug):
-        room = get_room_or_404(slug)
+        room = _get_room_or_404(slug)
         deleted, _ = Membership.objects.filter(room=room, user=request.user).delete()
         return Response({"left": bool(deleted)})
 
 
 class RoomMembersView(APIView):
     def get(self, request, slug):
-        room = get_room_or_404(slug)
+        room = _get_room_or_404(slug)
         if not can_read_room(request.user, room):
             return _error_response(
                 "permission_denied", ROOM_ACCESS_ERROR, status.HTTP_403_FORBIDDEN
@@ -127,7 +130,7 @@ class RoomMembersView(APIView):
         """Room admins add members. Without this a private room can never be
         shared: joining one is rejected for non-members, so it would stay
         permanently single-user."""
-        room = get_room_or_404(slug)
+        room = _get_room_or_404(slug)
         membership = Membership.objects.filter(room=room, user=request.user).first()
         if membership is None or membership.role != MembershipRole.ADMIN:
             return _error_response(
@@ -171,7 +174,7 @@ class RoomMessagesView(APIView):
     """Keyset pagination: newest-first window, returned oldest-first for rendering."""
 
     def get(self, request, slug):
-        room = get_room_or_404(slug)
+        room = _get_room_or_404(slug)
         if not can_read_room(request.user, room):
             return _error_response(
                 "permission_denied", ROOM_ACCESS_ERROR, status.HTTP_403_FORBIDDEN
@@ -216,7 +219,7 @@ class RoomMessagesView(APIView):
         )
         serializer.is_valid(raise_exception=True)
         client_id = serializer.validated_data.get("client_id", "")
-        message, created = _persist_message(
+        message, created = persist_message(
             room=room,
             sender=request.user,
             text=serializer.validated_data["text"],

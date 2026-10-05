@@ -16,9 +16,17 @@ from ...serializers import (
     RegisterSerializer,
     UserSerializer,
 )
-from .common import _error_response, _issue_tokens
+from ...services import issue_token_pair
+from .common import _error_response
 
 logger = get_logger("django-api.chat")
+
+
+def _token_response_data(user):
+    return {
+        **issue_token_pair(user),
+        "user": UserSerializer(user).data,
+    }
 
 
 class RegisterView(APIView):
@@ -50,7 +58,7 @@ class RegisterView(APIView):
                 status=status.HTTP_409_CONFLICT,
             )
         logger.info("user.registered", extra={"user_id": user.id})
-        return Response(_issue_tokens(user), status=status.HTTP_201_CREATED)
+        return Response(_token_response_data(user), status=status.HTTP_201_CREATED)
 
 
 class ChatTokenObtainPairView(TokenObtainPairView):
@@ -90,4 +98,4 @@ def authenticate_view(request):
             },
             status=status.HTTP_401_UNAUTHORIZED,
         )
-    return Response(_issue_tokens(user))
+    return Response(_token_response_data(user))

@@ -6,6 +6,15 @@ from rest_framework.permissions import BasePermission
 from .models import Membership
 
 
+def can_read_room(user, room):
+    """Return whether an authenticated user may read a room."""
+    if not user or not user.is_authenticated:
+        return False
+    if room.is_public:
+        return True
+    return Membership.objects.filter(room=room, user=user).exists()
+
+
 class HasRoomReadAccess(BasePermission):
     """Public rooms are readable by any authenticated user; private rooms only by members."""
 
@@ -13,21 +22,11 @@ class HasRoomReadAccess(BasePermission):
         return request.user and request.user.is_authenticated
 
     def has_object_permission(self, request, view, obj):
-        if obj.is_public:
-            return True
-        return Membership.objects.filter(room=obj, user=request.user).exists()
+        return can_read_room(request.user, obj)
 
 
-class IsRoomMember(BasePermission):
-    """Room membership is auto-granted for public rooms, so this allows public rooms too."""
-
-    def has_permission(self, request, view):
-        return request.user and request.user.is_authenticated
-
-    def has_object_permission(self, request, view, obj):
-        if obj.is_public:
-            return True
-        return Membership.objects.filter(room=obj, user=request.user).exists()
+class IsRoomMember(HasRoomReadAccess):
+    """Compatibility alias for the room read-access permission."""
 
 
 class ServiceTokenError(exceptions.APIException):
