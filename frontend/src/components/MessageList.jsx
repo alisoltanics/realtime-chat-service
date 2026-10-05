@@ -28,7 +28,6 @@ export default function MessageList({
   onRetry,
 }) {
   const scrollRef = useRef(null);
-  const bottomAnchorRef = useRef(null);
   const stickToBottomRef = useRef(true);
   const scrollSnapshotRef = useRef(null);
 
@@ -38,7 +37,8 @@ export default function MessageList({
     // Newer messages only steal the view when the reader is already at the
     // bottom (i.e. following the conversation live).
     if (stickToBottomRef.current) {
-      bottomAnchorRef.current?.scrollIntoView({ block: "end" });
+      const element = scrollRef.current;
+      if (element) element.scrollTop = element.scrollHeight;
       return;
     }
     // An older page was prepended: keep the message the reader was looking at
@@ -49,7 +49,7 @@ export default function MessageList({
     scrollSnapshotRef.current = null;
     const delta = element.scrollHeight - snapshot.height;
     if (delta > 0) element.scrollTop = snapshot.top + delta;
-  }, [totalCount, stored.length, pending.length]);
+  }, [totalCount, stored.length, pending.length, isLoadingHistory]);
 
   useEffect(() => {
     const element = scrollRef.current;
@@ -75,7 +75,8 @@ export default function MessageList({
     <Box
       ref={scrollRef}
       data-testid="message-list"
-      sx={{ flexGrow: 1, minHeight: 0, overflowY: "auto", px: { xs: 1, sm: 3 }, py: 2 }}
+      className="message-scroll"
+      sx={{ flexGrow: 1, minHeight: 0, overflowY: "auto", px: { xs: 0.75, sm: 1.25 }, py: { xs: 1.5, sm: 2 }, scrollBehavior: "smooth" }}
     >
       {hasMore && (
         <Box sx={{ display: "flex", justifyContent: "center", pb: 2 }}>
@@ -103,7 +104,7 @@ export default function MessageList({
         </Typography>
       )}
 
-      <Stack spacing={1}>
+      <Stack className="message-column" spacing={1} sx={{ width: "100%" }}>
         {stored.map((message, index) => {
           const previous = stored[index - 1];
           const showDay = !previous || !isSameDay(previous.created_at, message.created_at);
@@ -127,7 +128,7 @@ export default function MessageList({
         {pending.map((message) => (
           <MessageBubble
             key={`pending-${message.clientId}`}
-            message={{ ...message, sender: { id: currentUserId } }}
+            message={{ ...message, sender: { id: currentUserId, display_name: "شما" } }}
             mine
             showSender
             pending
@@ -135,8 +136,6 @@ export default function MessageList({
           />
         ))}
       </Stack>
-
-      <Box ref={bottomAnchorRef} sx={{ height: 1 }} />
     </Box>
   );
 }

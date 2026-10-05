@@ -23,18 +23,34 @@ const theme = createTheme({
   direction: "rtl",
   palette: {
     mode: "dark",
-    primary: { main: "#38bdf8" },
-    secondary: { main: "#a78bfa" },
-    background: { default: "#0b1220", paper: "#111c31" },
+    primary: { main: "#60d5c2", light: "#91ecdc", dark: "#168f82", contrastText: "#062b2c" },
+    secondary: { main: "#a99aff" },
+    background: { default: "#080f1b", paper: "#111b2b" },
+    text: { primary: "#edf4f7", secondary: "#9bacbc" },
+    divider: "rgba(174, 194, 210, 0.12)",
   },
-  shape: { borderRadius: 12 },
+  shape: { borderRadius: 16 },
   typography: {
     fontFamily: 'Vazirmatn, "Segoe UI", Tahoma, system-ui, sans-serif',
+    button: { fontWeight: 700, textTransform: "none" },
   },
   components: {
     MuiCssBaseline: {
       styleOverrides: {
-        body: { backgroundColor: "#0b1220" },
+        body: { backgroundColor: "#080f1b", color: "#edf4f7" },
+        "*": { scrollbarColor: "rgba(148,163,184,.28) transparent" },
+      },
+    },
+    MuiPaper: { styleOverrides: { root: { backgroundImage: "none" } } },
+    MuiButton: { styleOverrides: { root: { borderRadius: 12, minHeight: 42 } } },
+    MuiOutlinedInput: {
+      styleOverrides: {
+        root: {
+          borderRadius: 13,
+          backgroundColor: "rgba(6, 14, 25, .5)",
+          "& fieldset": { borderColor: "rgba(174,194,210,.16)" },
+          "&:hover fieldset": { borderColor: "rgba(96,213,194,.42)" },
+        },
       },
     },
   },

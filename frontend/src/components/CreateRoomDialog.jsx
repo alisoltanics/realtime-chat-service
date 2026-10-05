@@ -25,13 +25,17 @@ export default function CreateRoomDialog({ open, onClose, onSubmit, isPending, e
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="xs">
       <DialogTitle>اتاق جدید</DialogTitle>
       <DialogContent>
+        <Typography component="label" htmlFor="create-room-name" variant="body2" sx={{ display: "block", mb: 0.8, mt: 0.5, fontWeight: 650 }}>
+          نام اتاق
+        </Typography>
         <TextField
+          id="create-room-name"
           autoFocus
           fullWidth
           margin="dense"
-          label="نام اتاق"
           value={name}
           onChange={(event) => setName(event.target.value)}
+          inputProps={{ "aria-label": "نام اتاق" }}
           onKeyDown={(event) => {
             if (event.key === "Enter") submit();
           }}
