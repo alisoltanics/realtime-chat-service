@@ -1,7 +1,34 @@
+from django.db.models import Prefetch, prefetch_related_objects
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
-from .models import MAX_MESSAGE_LENGTH, Membership, Message, Room
+from .models import Membership, Message, Room
+from .settings import MAX_MESSAGE_LENGTH
+
+
+def latest_message_prefetch():
+    """Build the shared one-query prefetch for each room's latest message."""
+    return Prefetch(
+        "messages",
+        queryset=Message.objects.select_related("sender").order_by("-id")[:1],
+        to_attr="latest_messages",
+    )
+
+
+class RoomListSerializer(serializers.ListSerializer):
+    """Ensure serializing multiple rooms never queries once per room."""
+
+    def to_representation(self, data):
+        rooms = list(data)
+        rooms_needing_prefetch = [
+            room for room in rooms if not hasattr(room, "latest_messages")
+        ]
+        if rooms_needing_prefetch:
+            prefetch_related_objects(
+                rooms_needing_prefetch,
+                latest_message_prefetch(),
+            )
+        return super().to_representation(rooms)
 
 
 class UserSerializer(serializers.Serializer):
@@ -47,6 +74,7 @@ class RoomSerializer(serializers.ModelSerializer):
             "last_message",
         ]
         read_only_fields = ["id", "slug", "created_at"]
+        list_serializer_class = RoomListSerializer
 
     def get_last_message(self, obj):
         prefetched = getattr(obj, "latest_messages", None)
@@ -117,9 +145,3 @@ class MembershipSerializer(serializers.Serializer):
     user = UserSerializer(read_only=True)
     role = serializers.CharField(read_only=True)
     joined_at = serializers.DateTimeField(read_only=True)
-    is_online = serializers.SerializerMethodField()
-
-    def get_is_online(self, obj):
-        # Presence is owned by the realtime service (in-memory); the REST API
-        # simply echoes what the client observed over the socket.
-        return False

@@ -5,6 +5,7 @@ from rest_framework.test import APIClient
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from chat.models import Membership, Message, Room
+from chat.settings import MembershipRole
 
 # Read from settings so the suite passes whatever INTERNAL_SERVICE_TOKEN the
 # environment provides instead of hardcoding one value.
@@ -138,7 +139,7 @@ class RoomApiTests(TestCase):
         self.assertEqual(response.status_code, 201)
         room = Room.objects.get(slug=response.data["slug"])
         membership = Membership.objects.get(room=room, user=self.ali)
-        self.assertEqual(membership.role, Membership.Role.ADMIN)
+        self.assertEqual(membership.role, MembershipRole.ADMIN)
 
     def test_admin_can_add_member_to_private_room(self):
         created = self.client.post("/api/rooms/", {"name": "Secret", "is_public": False}, format="json")

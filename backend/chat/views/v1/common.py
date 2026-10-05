@@ -5,8 +5,8 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from ..models import Membership, Message, Room
-from ..serializers import UserSerializer
+from ...models import Membership, Message, Room
+from ...serializers import UserSerializer
 
 MESSAGE_PAGE_SIZE = 30
 MAX_MESSAGE_PAGE_SIZE = 100

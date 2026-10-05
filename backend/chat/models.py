@@ -10,8 +10,7 @@ from django.db.models import Q
 from django.db.models.functions import Length, Trim
 from django.utils.text import slugify
 
-
-MAX_MESSAGE_LENGTH = 4000
+from .settings import MAX_MESSAGE_LENGTH, MembershipRole
 
 
 class Room(models.Model):
@@ -58,10 +57,6 @@ class Room(models.Model):
 
 
 class Membership(models.Model):
-    class Role(models.TextChoices):
-        MEMBER = "member", "Member"
-        ADMIN = "admin", "Admin"
-
     room = models.ForeignKey(
         Room,
         on_delete=models.CASCADE,
@@ -74,8 +69,8 @@ class Membership(models.Model):
     )
     role = models.CharField(
         max_length=10,
-        choices=Role.choices,
-        default=Role.MEMBER,
+        choices=MembershipRole.choices,
+        default=MembershipRole.MEMBER,
     )
     joined_at = models.DateTimeField(auto_now_add=True)
 
@@ -85,7 +80,9 @@ class Membership(models.Model):
                 fields=["room", "user"], name="uniq_membership_room_user"
             ),
             models.CheckConstraint(
-                condition=Q(role__in=[Role.MEMBER, Role.ADMIN]),
+                condition=Q(
+                    role__in=[MembershipRole.MEMBER, MembershipRole.ADMIN]
+                ),
                 name="membership_role_valid",
             ),
         ]

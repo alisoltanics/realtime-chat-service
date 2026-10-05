@@ -5,10 +5,10 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from ..logging import get_logger
-from ..models import Membership, Message, Room
-from ..permissions import HasServiceToken
-from ..serializers import MessageCreateSerializer, MessageSerializer
+from ...logging import get_logger
+from ...models import Membership, Message, Room
+from ...permissions import HasServiceToken
+from ...serializers import MessageCreateSerializer, MessageSerializer
 from .common import _error_response, _persist_message, _public_user, can_read_room
 
 logger = get_logger("django-api.chat")

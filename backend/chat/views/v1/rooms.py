@@ -2,22 +2,24 @@
 
 from django.contrib.auth import get_user_model
 from django.db import transaction
-from django.db.models import Count, Prefetch, Q
+from django.db.models import Count, Q
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from ..logging import get_logger
-from ..models import Membership, Message, Room
-from ..permissions import HasRoomReadAccess
-from ..serializers import (
+from ...logging import get_logger
+from ...models import Membership, Message, Room
+from ...permissions import HasRoomReadAccess
+from ...serializers import (
     MembershipSerializer,
     MessageCreateSerializer,
     MessageSerializer,
     RoomCreateSerializer,
     RoomSerializer,
+    latest_message_prefetch,
 )
+from ...settings import MembershipRole
 from .common import (
     MAX_MESSAGE_PAGE_SIZE,
     MESSAGE_PAGE_SIZE,
@@ -36,13 +38,7 @@ logger = get_logger("django-api.chat")
 def room_queryset_with_annotations():
     return Room.objects.annotate(
         member_count=Count("memberships", distinct=True),
-    ).prefetch_related(
-        Prefetch(
-            "messages",
-            queryset=Message.objects.select_related("sender").order_by("-id")[:1],
-            to_attr="latest_messages",
-        )
-    )
+    ).prefetch_related(latest_message_prefetch())
 
 
 class RoomListCreateView(APIView):
@@ -60,7 +56,7 @@ class RoomListCreateView(APIView):
             Membership.objects.create(
                 room=room,
                 user=request.user,
-                role=Membership.Role.ADMIN,
+                role=MembershipRole.ADMIN,
             )
         logger.info("room.created", extra={"room_id": room.id, "room_slug": room.slug})
         return Response(
@@ -89,7 +85,7 @@ class RoomJoinView(APIView):
                 "room_private", ROOM_PRIVATE_ERROR, status.HTTP_403_FORBIDDEN
             )
         membership, created = Membership.objects.get_or_create(
-            room=room, user=request.user, defaults={"role": Membership.Role.MEMBER}
+            room=room, user=request.user, defaults={"role": MembershipRole.MEMBER}
         )
         logger.info(
             "room.member_joined",
@@ -133,7 +129,7 @@ class RoomMembersView(APIView):
         permanently single-user."""
         room = get_room_or_404(slug)
         membership = Membership.objects.filter(room=room, user=request.user).first()
-        if membership is None or membership.role != Membership.Role.ADMIN:
+        if membership is None or membership.role != MembershipRole.ADMIN:
             return _error_response(
                 "permission_denied", "admin only", status.HTTP_403_FORBIDDEN
             )
@@ -154,7 +150,7 @@ class RoomMembersView(APIView):
             )
 
         member, created = Membership.objects.get_or_create(
-            room=room, user=target, defaults={"role": Membership.Role.MEMBER}
+            room=room, user=target, defaults={"role": MembershipRole.MEMBER}
         )
         logger.info(
             "room.member_added",
