@@ -169,6 +169,50 @@ class RoomApiTests(TestCase):
         self.assertEqual(response.status_code, 403)
         self.assertEqual(Membership.objects.filter(room=self.public).count(), 0)
 
+    def test_admin_can_remove_regular_member(self):
+        Membership.objects.create(
+            room=self.public, user=self.ali, role=MembershipRole.ADMIN
+        )
+        Membership.objects.create(room=self.public, user=self.sara)
+
+        response = self.client.delete(
+            f"/api/rooms/{self.public.slug}/members/{self.sara.id}/"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data, {"removed": True})
+        self.assertFalse(
+            Membership.objects.filter(room=self.public, user=self.sara).exists()
+        )
+
+    def test_non_admin_cannot_remove_member(self):
+        Membership.objects.create(room=self.public, user=self.ali)
+        Membership.objects.create(room=self.public, user=self.sara)
+
+        response = self.client.delete(
+            f"/api/rooms/{self.public.slug}/members/{self.sara.id}/"
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertTrue(
+            Membership.objects.filter(room=self.public, user=self.sara).exists()
+        )
+
+    def test_admin_membership_cannot_be_removed(self):
+        Membership.objects.create(
+            room=self.public, user=self.ali, role=MembershipRole.ADMIN
+        )
+
+        response = self.client.delete(
+            f"/api/rooms/{self.public.slug}/members/{self.ali.id}/"
+        )
+
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.data["error"]["code"], "member_not_found")
+        self.assertTrue(
+            Membership.objects.filter(room=self.public, user=self.ali).exists()
+        )
+
     def test_add_member_unknown_user_is_404(self):
         created = self.client.post("/api/rooms/", {"name": "Secret 3"}, format="json")
         response = self.client.post(

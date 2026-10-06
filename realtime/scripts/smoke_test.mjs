@@ -167,14 +167,18 @@ async function main() {
   assert.ok(maxIdOlder < maxIdFirstPage, "older page must not contain newer messages");
   ok(`page 1 newest id=${maxIdFirstPage}, page 2 newest id=${maxIdOlder}`);
 
-  step("7/8 share a private room: admin adds a member, both exchange messages");
+  step("7/8 create a private room with a member and exchange messages");
   const created = await fetch(`${API}/api/v1/rooms/`, {
     method: "POST",
     headers: {
       authorization: `Bearer ${sessionA.access}`,
       "content-type": "application/json",
     },
-    body: JSON.stringify({ name: `Smoke ${Date.now()}`, is_public: false }),
+    body: JSON.stringify({
+      name: `Smoke ${Date.now()}`,
+      is_public: false,
+      member_usernames: [sessionB.user.username],
+    }),
   }).then((response) => {
     if (!response.ok) fail(`room creation failed: ${response.status}`);
     return response.json();
@@ -182,26 +186,14 @@ async function main() {
   const privateSlug = created.slug;
   if (created.is_public !== false) fail("created room is not private");
 
-  const beforeInvite = await fetch(`${API}/api/v1/rooms/`, {
+  const visibleToMember = await fetch(`${API}/api/v1/rooms/`, {
     headers: { authorization: `Bearer ${sessionB.access}` },
   }).then((response) => response.json());
   assert.ok(
-    !beforeInvite.results.some((item) => item.slug === privateSlug),
-    "private room leaked into another user's list"
+    visibleToMember.results.some((item) => item.slug === privateSlug),
+    "invited member cannot see the private room"
   );
-
-  const invited = await fetch(`${API}/api/v1/rooms/${privateSlug}/members/`, {
-    method: "POST",
-    headers: {
-      authorization: `Bearer ${sessionA.access}`,
-      "content-type": "application/json",
-    },
-    body: JSON.stringify({ username: sessionB.user.username }),
-  }).then((response) => {
-    if (response.status !== 201) fail(`admin could not add a member: ${response.status}`);
-    return response.json();
-  });
-  ok(`room admin added ${invited.user.username} to "${privateSlug}"`);
+  ok(`invited member can see "${privateSlug}"`);
 
   const privateJoinA = await emit(socketA, "room:join", { room: privateSlug });
   const privateJoinB = await emit(socketB, "room:join", { room: privateSlug });

@@ -36,6 +36,10 @@ from .common import (
 logger = get_logger("django-api.chat")
 
 
+class MemberNotFound(NotFound):
+    default_code = "member_not_found"
+
+
 def room_queryset_with_annotations():
     return Room.objects.annotate(
         member_count=Count("memberships", distinct=True),
@@ -208,7 +212,7 @@ class RoomMemberDetailView(generics.DestroyAPIView):
             raise PermissionDenied("admin only")
         target = self.filter_queryset(self.get_queryset()).first()
         if target is None:
-            raise NotFound("member not found", code="member_not_found")
+            raise MemberNotFound("member not found")
         return target
 
     def perform_destroy(self, instance):
