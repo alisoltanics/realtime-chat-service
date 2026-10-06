@@ -1,4 +1,6 @@
 from django.db.models import Prefetch, prefetch_related_objects
+from django.contrib.auth import get_user_model
+from django.db.models import Q
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
@@ -93,10 +95,58 @@ class RoomSerializer(serializers.ModelSerializer):
 
 
 class RoomCreateSerializer(serializers.ModelSerializer):
+    member_usernames = serializers.ListField(
+        child=serializers.CharField(max_length=30, trim_whitespace=True),
+        required=False,
+        write_only=True,
+        max_length=50,
+    )
+
     class Meta:
         model = Room
-        fields = ["id", "name", "slug", "is_public", "created_at"]
+        fields = ["id", "name", "slug", "is_public", "created_at", "member_usernames"]
         read_only_fields = ["id", "slug", "created_at"]
+
+    def validate_member_usernames(self, values):
+        usernames = []
+        seen = set()
+        for value in values:
+            username = value.strip()
+            key = username.casefold()
+            if not username or key in seen:
+                raise serializers.ValidationError("نام کاربری خالی یا تکراری است.")
+            seen.add(key)
+            usernames.append(username)
+        if not usernames:
+            return []
+
+        query = Q()
+        for username in usernames:
+            query |= Q(username__iexact=username)
+        users = list(get_user_model().objects.filter(query))
+        users_by_name = {user.username.casefold(): user for user in users}
+        missing = [name for name in usernames if name.casefold() not in users_by_name]
+        if missing:
+            raise serializers.ValidationError(
+                f"کاربری با این نام کاربری پیدا نشد: {', '.join(missing)}"
+            )
+
+        request = self.context.get("request")
+        if request and any(user.pk == request.user.pk for user in users):
+            raise serializers.ValidationError("خودتان از قبل عضو اتاق هستید.")
+        return [users_by_name[name.casefold()] for name in usernames]
+
+    def validate(self, attrs):
+        is_public = attrs.get("is_public", Room._meta.get_field("is_public").default)
+        if not is_public and not attrs.get("member_usernames"):
+            raise serializers.ValidationError(
+                {"member_usernames": "برای ساخت اتاق خصوصی، دست‌کم یک نفر را اضافه کنید."}
+            )
+        return attrs
+
+    def create(self, validated_data):
+        validated_data.pop("member_usernames", None)
+        return super().create(validated_data)
 
     def validate_name(self, value):
         value = value.strip()

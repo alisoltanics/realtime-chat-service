@@ -52,14 +52,21 @@ class RoomListCreateView(APIView):
         return Response({"results": RoomSerializer(rooms, many=True).data})
 
     def post(self, request):
-        serializer = RoomCreateSerializer(data=request.data)
+        serializer = RoomCreateSerializer(data=request.data, context={"request": request})
         serializer.is_valid(raise_exception=True)
+        invitees = serializer.validated_data.get("member_usernames", [])
         with transaction.atomic():
             room = serializer.save(created_by=request.user)
             Membership.objects.create(
                 room=room,
                 user=request.user,
                 role=MembershipRole.ADMIN,
+            )
+            Membership.objects.bulk_create(
+                [
+                    Membership(room=room, user=user, role=MembershipRole.MEMBER)
+                    for user in invitees
+                ]
             )
         logger.info("room.created", extra={"room_id": room.id, "room_slug": room.slug})
         return Response(
@@ -168,6 +175,31 @@ class RoomMembersView(APIView):
             MembershipSerializer(member).data,
             status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
         )
+
+
+class RoomMemberDetailView(APIView):
+    def delete(self, request, slug, user_id):
+        room = _get_room_or_404(slug)
+        membership = Membership.objects.filter(room=room, user=request.user).first()
+        if membership is None or membership.role != MembershipRole.ADMIN:
+            return _error_response(
+                "permission_denied", "admin only", status.HTTP_403_FORBIDDEN
+            )
+
+        target = Membership.objects.filter(
+            room=room, user_id=user_id, role=MembershipRole.MEMBER
+        ).first()
+        if target is None:
+            return _error_response(
+                "member_not_found", "member not found", status.HTTP_404_NOT_FOUND
+            )
+
+        target.delete()
+        logger.info(
+            "room.member_removed",
+            extra={"room_id": room.id, "room_slug": room.slug, "user_id": user_id, "removed_by": request.user.id},
+        )
+        return Response({"removed": True})
 
 
 class RoomMessagesView(APIView):

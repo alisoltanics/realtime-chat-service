@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
@@ -8,14 +8,17 @@ import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import Avatar from "@mui/material/Avatar";
 import ForumRoundedIcon from "@mui/icons-material/ForumRounded";
+import GroupsRoundedIcon from "@mui/icons-material/GroupsRounded";
 
 import MessageList from "./MessageList.jsx";
 import PresenceBar from "./PresenceBar.jsx";
+import RoomMembersDialog from "./RoomMembersDialog.jsx";
 import { useRealtimeRoom } from "../hooks/useRealtimeRoom.js";
 import { endpoints, messageForCode } from "../lib/api.js";
 import { getSession } from "../lib/session.js";
 
 export default function ChatRoom({ roomSlug, roomName }) {
+  const queryClient = useQueryClient();
   const currentUser = getSession()?.user ?? null;
   const {
     connectionStatus,
@@ -38,6 +41,18 @@ export default function ChatRoom({ roomSlug, roomName }) {
     enabled: Boolean(room.joined),
     refetchInterval: room.joined ? 30_000 : false,
   });
+  const [membersOpen, setMembersOpen] = useState(false);
+  const addMember = useMutation({
+    mutationFn: (username) => endpoints.addMember(getSession()?.access, roomSlug, username),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["room-members", roomSlug] }),
+  });
+  const removeMember = useMutation({
+    mutationFn: (userId) => endpoints.removeMember(getSession()?.access, roomSlug, userId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["room-members", roomSlug] }),
+  });
+  const currentMembership = (members.data?.results ?? []).find(
+    (item) => String(item.user.id) === String(currentUser?.id)
+  );
 
   const [text, setText] = useState("");
 
@@ -72,6 +87,20 @@ export default function ChatRoom({ roomSlug, roomName }) {
           </Typography>
         </Box>
         <Box sx={{ flexGrow: 1 }} />
+        <Button
+          size="small"
+          variant="outlined"
+          startIcon={<GroupsRoundedIcon />}
+          onClick={() => setMembersOpen(true)}
+          disabled={!room.joined}
+          sx={{
+            whiteSpace: "nowrap",
+            gap: 1,
+            "& .MuiButton-startIcon": { margin: 0 },
+          }}
+        >
+          اعضا · {members.data?.results?.length ?? 0}
+        </Button>
         <PresenceBar
           onlineIds={presenceIds}
           onlineUsers={presenceUsers}
@@ -144,6 +173,17 @@ export default function ChatRoom({ roomSlug, roomName }) {
           {messageForCode(sendError, "ارسال پیام با خطا مواجه شد.")}
         </Alert>
       )}
+      <RoomMembersDialog
+        open={membersOpen}
+        onClose={() => setMembersOpen(false)}
+        members={members.data?.results ?? []}
+        canManage={currentMembership?.role === "admin"}
+        onAdd={(username) => addMember.mutateAsync(username)}
+        onRemove={(userId) => removeMember.mutateAsync(userId)}
+        isAdding={addMember.isPending}
+        isRemoving={removeMember.isPending}
+        error={addMember.error?.message ?? removeMember.error?.message ?? null}
+      />
     </Box>
   );
 }

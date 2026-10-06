@@ -19,6 +19,7 @@ from .rooms import (
     RoomJoinView,
     RoomLeaveView,
     RoomListCreateView,
+    RoomMemberDetailView,
     RoomMembersView,
     RoomMessagesView,
 )
@@ -35,6 +36,7 @@ __all__ = [
     "RoomJoinView",
     "RoomLeaveView",
     "RoomListCreateView",
+    "RoomMemberDetailView",
     "RoomMembersView",
     "RoomMessagesView",
     "authenticate_view",

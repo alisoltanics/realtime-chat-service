@@ -54,12 +54,13 @@ Authorization: Bearer <access_token>
 | متد | مسیر | توضیح |
 |-----|------|-------|
 | GET | `/api/v1/rooms/` | اتاق‌های عمومی + اتاق‌های خصوصی که عضو آن هستید |
-| POST | `/api/v1/rooms/` | `{name, is_public?}` → سازنده `admin` می‌شود و عضو هم هست |
+| POST | `/api/v1/rooms/` | `{name, is_public?, member_usernames: []}` → سازنده مالک می‌شود؛ اتاق خصوصی حداقل یک نام کاربری دیگر می‌خواهد |
 | GET | `/api/v1/rooms/<slug>/` | جزئیات اتاق؛ غیرعضو اتاق خصوصی `403` |
 | POST | `/api/v1/rooms/<slug>/join/` | عضویت در اتاق عمومی |
 | POST | `/api/v1/rooms/<slug>/leave/` | خروج از اتاق |
 | GET | `/api/v1/rooms/<slug>/members/` | اعضا (فقط برای کسانی که `can_read` دارند) |
 | POST | `/api/v1/rooms/<slug>/members/` | **افزودن عضو، فقط ادمین اتاق**: `{username}` یا `{user_id}` |
+| DELETE | `/api/v1/rooms/<slug>/members/<user_id>/` | **حذف عضو عادی، فقط ادمین اتاق**؛ ادمین‌ها از این مسیر حذف نمی‌شوند |
 | GET | `/api/v1/rooms/<slug>/messages/` | تاریخچهٔ پیام‌ها (صفحه‌بندی keyset) |
 | POST | `/api/v1/rooms/<slug>/messages/` | مسیر جایگزین REST برای ارسال پیام |
 

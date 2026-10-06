@@ -17,6 +17,7 @@ urlpatterns = [
     path("rooms/<slug:slug>/join/", views.RoomJoinView.as_view(), name="room-join"),
     path("rooms/<slug:slug>/leave/", views.RoomLeaveView.as_view(), name="room-leave"),
     path("rooms/<slug:slug>/members/", views.RoomMembersView.as_view(), name="room-members"),
+    path("rooms/<slug:slug>/members/<int:user_id>/", views.RoomMemberDetailView.as_view(), name="room-member-detail"),
     path("rooms/<slug:slug>/messages/", views.RoomMessagesView.as_view(), name="room-messages"),
     # internal (realtime service)
     path(
