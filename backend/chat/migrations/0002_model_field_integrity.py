@@ -2,6 +2,7 @@ from django.core.validators import MaxLengthValidator, MinLengthValidator
 from django.db import migrations, models
 from django.db.models import Q
 from django.db.models.functions import Length, Trim
+from django.db.models.lookups import GreaterThan, GreaterThanOrEqual, LessThanOrEqual
 
 
 class Migration(migrations.Migration):
@@ -21,14 +22,14 @@ class Migration(migrations.Migration):
         migrations.AddConstraint(
             model_name="room",
             constraint=models.CheckConstraint(
-                condition=Length(Trim("name")) >= 2,
+                condition=GreaterThanOrEqual(Length(Trim("name")), 2),
                 name="room_name_trimmed_min_2",
             ),
         ),
         migrations.AddConstraint(
             model_name="room",
             constraint=models.CheckConstraint(
-                condition=Length(Trim("slug")) > 0,
+                condition=GreaterThan(Length(Trim("slug")), 0),
                 name="room_slug_not_blank",
             ),
         ),
@@ -42,7 +43,8 @@ class Migration(migrations.Migration):
         migrations.AddConstraint(
             model_name="message",
             constraint=models.CheckConstraint(
-                condition=(Length(Trim("text")) >= 1) & (Length("text") <= 4000),
+                condition=GreaterThanOrEqual(Length(Trim("text")), 1)
+                & LessThanOrEqual(Length("text"), 4000),
                 name="message_text_trimmed_length_valid",
             ),
         ),

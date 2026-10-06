@@ -8,6 +8,7 @@ from django.core.validators import MaxLengthValidator, MinLengthValidator
 from django.db import models
 from django.db.models import Q
 from django.db.models.functions import Length, Trim
+from django.db.models.lookups import GreaterThan, GreaterThanOrEqual, LessThanOrEqual
 from django.utils.text import slugify
 
 from .settings import MAX_MESSAGE_LENGTH, MembershipRole
@@ -31,11 +32,11 @@ class Room(models.Model):
         indexes = [models.Index(fields=["-created_at"], name="room_created_idx")]
         constraints = [
             models.CheckConstraint(
-                condition=Length(Trim("name")) >= 2,
+                condition=GreaterThanOrEqual(Length(Trim("name")), 2),
                 name="room_name_trimmed_min_2",
             ),
             models.CheckConstraint(
-                condition=Length(Trim("slug")) > 0,
+                condition=GreaterThan(Length(Trim("slug")), 0),
                 name="room_slug_not_blank",
             ),
         ]
@@ -86,7 +87,6 @@ class Membership(models.Model):
                 name="membership_role_valid",
             ),
         ]
-        indexes = [models.Index(fields=["user", "-joined_at"], name="member_user_idx")]
 
     def __str__(self):
         return f"{self.user_id}@{self.room_id}"
@@ -118,7 +118,6 @@ class Message(models.Model):
         indexes = [
             # Room history is always read newest-first/oldest-first per room,
             # this index serves the keyset pagination on (room_id, id).
-            models.Index(fields=["room", "-created_at", "-id"], name="msg_room_created_idx"),
             models.Index(fields=["room", "-id"], name="msg_room_id_idx"),
         ]
         constraints = [
@@ -128,8 +127,8 @@ class Message(models.Model):
                 name="uniq_message_client_id",
             ),
             models.CheckConstraint(
-                condition=(Length(Trim("text")) >= 1)
-                & (Length("text") <= MAX_MESSAGE_LENGTH),
+                condition=GreaterThanOrEqual(Length(Trim("text")), 1)
+                & LessThanOrEqual(Length("text"), MAX_MESSAGE_LENGTH),
                 name="message_text_trimmed_length_valid",
             ),
         ]
