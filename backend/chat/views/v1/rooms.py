@@ -5,6 +5,8 @@ from django.db import transaction
 from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404
 from rest_framework import status
+from rest_framework import generics
+from rest_framework.exceptions import NotFound, PermissionDenied
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -44,15 +46,25 @@ def _get_room_or_404(slug):
     return get_object_or_404(Room, slug=slug)
 
 
-class RoomListCreateView(APIView):
-    def get(self, request):
-        rooms = room_queryset_with_annotations().filter(
-            Q(is_public=True) | Q(memberships__user=request.user)
-        ).distinct()
-        return Response({"results": RoomSerializer(rooms, many=True).data})
+class RoomListCreateView(generics.ListCreateAPIView):
+    serializer_class = RoomSerializer
 
-    def post(self, request):
-        serializer = RoomCreateSerializer(data=request.data, context={"request": request})
+    def get_serializer_class(self):
+        if self.request.method == "POST":
+            return RoomCreateSerializer
+        return RoomSerializer
+
+    def get_queryset(self):
+        return room_queryset_with_annotations().filter(
+            Q(is_public=True) | Q(memberships__user=self.request.user)
+        ).distinct()
+
+    def list(self, request, *args, **kwargs):
+        rooms = self.filter_queryset(self.get_queryset())
+        return Response({"results": self.get_serializer(rooms, many=True).data})
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         invitees = serializer.validated_data.get("member_usernames", [])
         with transaction.atomic():
@@ -75,14 +87,13 @@ class RoomListCreateView(APIView):
         )
 
 
-class RoomDetailView(APIView):
+class RoomDetailView(generics.RetrieveAPIView):
     permission_classes = [IsAuthenticated, HasRoomReadAccess]
+    serializer_class = RoomSerializer
+    lookup_field = "slug"
 
-    def get(self, request, slug):
-        room = _get_room_or_404(slug)
-        self.check_object_permissions(request, room)
-        room = room_queryset_with_annotations().get(pk=room.pk)
-        return Response(RoomSerializer(room).data)
+    def get_queryset(self):
+        return room_queryset_with_annotations()
 
 
 class RoomJoinView(APIView):
@@ -119,25 +130,28 @@ class RoomLeaveView(APIView):
         return Response({"left": bool(deleted)})
 
 
-class RoomMembersView(APIView):
-    def get(self, request, slug):
-        room = _get_room_or_404(slug)
-        if not can_read_room(request.user, room):
-            return _error_response(
-                "permission_denied", ROOM_ACCESS_ERROR, status.HTTP_403_FORBIDDEN
-            )
-        memberships = (
+class RoomMembersView(generics.ListCreateAPIView):
+    serializer_class = MembershipSerializer
+
+    def get_queryset(self):
+        room = _get_room_or_404(self.kwargs["slug"])
+        if not can_read_room(self.request.user, room):
+            raise PermissionDenied(ROOM_ACCESS_ERROR)
+        return (
             Membership.objects.filter(room=room)
             .select_related("user")
             .order_by("user_id")
         )
-        return Response({"results": MembershipSerializer(memberships, many=True).data})
 
-    def post(self, request, slug):
+    def list(self, request, *args, **kwargs):
+        memberships = self.filter_queryset(self.get_queryset())
+        return Response({"results": self.get_serializer(memberships, many=True).data})
+
+    def create(self, request, *args, **kwargs):
         """Room admins add members. Without this a private room can never be
         shared: joining one is rejected for non-members, so it would stay
         permanently single-user."""
-        room = _get_room_or_404(slug)
+        room = _get_room_or_404(self.kwargs["slug"])
         membership = Membership.objects.filter(room=room, user=request.user).first()
         if membership is None or membership.role != MembershipRole.ADMIN:
             return _error_response(
@@ -177,28 +191,37 @@ class RoomMembersView(APIView):
         )
 
 
-class RoomMemberDetailView(APIView):
-    def delete(self, request, slug, user_id):
-        room = _get_room_or_404(slug)
-        membership = Membership.objects.filter(room=room, user=request.user).first()
+class RoomMemberDetailView(generics.DestroyAPIView):
+    serializer_class = MembershipSerializer
+
+    def get_queryset(self):
+        return Membership.objects.filter(
+            room__slug=self.kwargs["slug"],
+            user_id=self.kwargs["user_id"],
+            role=MembershipRole.MEMBER,
+        )
+
+    def get_object(self):
+        room = _get_room_or_404(self.kwargs["slug"])
+        membership = Membership.objects.filter(room=room, user=self.request.user).first()
         if membership is None or membership.role != MembershipRole.ADMIN:
-            return _error_response(
-                "permission_denied", "admin only", status.HTTP_403_FORBIDDEN
-            )
-
-        target = Membership.objects.filter(
-            room=room, user_id=user_id, role=MembershipRole.MEMBER
-        ).first()
+            raise PermissionDenied("admin only")
+        target = self.filter_queryset(self.get_queryset()).first()
         if target is None:
-            return _error_response(
-                "member_not_found", "member not found", status.HTTP_404_NOT_FOUND
-            )
+            raise NotFound("member not found", code="member_not_found")
+        return target
 
-        target.delete()
+    def perform_destroy(self, instance):
+        room = instance.room
         logger.info(
             "room.member_removed",
-            extra={"room_id": room.id, "room_slug": room.slug, "user_id": user_id, "removed_by": request.user.id},
+            extra={"room_id": room.id, "room_slug": room.slug, "user_id": instance.user_id, "removed_by": self.request.user.id},
         )
+        instance.delete()
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        self.perform_destroy(instance)
         return Response({"removed": True})
 
 
@@ -236,7 +259,7 @@ class RoomMessagesView(APIView):
 
     def post(self, request, slug):
         """REST fallback for clients without a socket (also used by the smoke test)."""
-        room = get_room_or_404(slug)
+        room = _get_room_or_404(slug)
         if not can_read_room(request.user, room):
             return _error_response(
                 "permission_denied", ROOM_ACCESS_ERROR, status.HTTP_403_FORBIDDEN

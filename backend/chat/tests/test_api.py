@@ -126,6 +126,7 @@ class RoomApiTests(TestCase):
         user_model = get_user_model()
         self.ali = user_model.objects.create_user("ali", password="sup3rsecret")
         self.sara = user_model.objects.create_user("sara", password="sup3rsecret")
+        self.mona = user_model.objects.create_user("mona", password="sup3rsecret")
         self.public = Room.objects.create(name="Public", slug="public", is_public=True)
         self.private = Room.objects.create(name="Private", slug="private", is_public=False)
         Membership.objects.create(room=self.private, user=self.sara)
@@ -142,20 +143,24 @@ class RoomApiTests(TestCase):
         self.assertEqual(membership.role, MembershipRole.ADMIN)
 
     def test_admin_can_add_member_to_private_room(self):
-        created = self.client.post("/api/rooms/", {"name": "Secret", "is_public": False}, format="json")
+        created = self.client.post(
+            "/api/rooms/",
+            {"name": "Secret", "is_public": False, "member_usernames": ["sara"]},
+            format="json",
+        )
         self.assertEqual(created.status_code, 201)
         self.assertFalse(created.data["is_public"], "room must really be private")
         slug = created.data["slug"]
 
-        added = self.client.post(f"/api/rooms/{slug}/members/", {"username": "sara"}, format="json")
+        added = self.client.post(f"/api/rooms/{slug}/members/", {"username": "mona"}, format="json")
         self.assertEqual(added.status_code, 201)
-        self.assertEqual(added.data["user"]["username"], "sara")
-        self.assertTrue(Membership.objects.filter(room__slug=slug, user=self.sara).exists())
+        self.assertEqual(added.data["user"]["username"], "mona")
+        self.assertTrue(Membership.objects.filter(room__slug=slug, user=self.mona).exists())
 
         # Adding the same member twice is idempotent, not a duplicate row.
-        again = self.client.post(f"/api/rooms/{slug}/members/", {"username": "sara"}, format="json")
+        again = self.client.post(f"/api/rooms/{slug}/members/", {"username": "mona"}, format="json")
         self.assertEqual(again.status_code, 200)
-        self.assertEqual(Membership.objects.filter(room__slug=slug).count(), 2)
+        self.assertEqual(Membership.objects.filter(room__slug=slug).count(), 3)
 
     def test_non_admin_cannot_add_members(self):
         response = self.client.post(
@@ -172,7 +177,11 @@ class RoomApiTests(TestCase):
         self.assertEqual(response.status_code, 404)
 
     def test_added_member_can_read_private_room(self):
-        created = self.client.post("/api/rooms/", {"name": "Secret 2", "is_public": False}, format="json")
+        created = self.client.post(
+            "/api/rooms/",
+            {"name": "Secret 2", "is_public": False, "member_usernames": ["mona"]},
+            format="json",
+        )
         slug = created.data["slug"]
         self.assertFalse(created.data["is_public"])
         self.client.post(f"/api/rooms/{slug}/members/", {"username": "sara"}, format="json")
