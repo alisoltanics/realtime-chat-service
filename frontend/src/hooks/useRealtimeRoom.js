@@ -28,6 +28,7 @@ export function useRealtimeRoom(roomSlug) {
   const [connectionStatus, setConnectionStatus] = useState("disconnected");
   const [roomState, setRoomState] = useState({ joined: false, roomName: null, error: null });
   const [presenceIds, setPresenceIds] = useState([]);
+  const [presenceUsers, setPresenceUsers] = useState([]);
   const [liveById, setLiveById] = useState(() => new Map());
   const [pendingByClientId, setPendingByClientId] = useState(() => new Map());
   const [sendError, setSendError] = useState(null);
@@ -104,7 +105,9 @@ export function useRealtimeRoom(roomSlug) {
         if (response?.ok) {
           joinedRoomRef.current = slug;
           setRoomState({ joined: true, roomName: response.roomName ?? null, error: null });
-          setPresenceIds((response.presence ?? []).map((item) => item.id));
+          const users = response.presence ?? [];
+          setPresenceUsers(users);
+          setPresenceIds(users.map((item) => item.id));
         } else {
           setRoomState({
             joined: false,
@@ -123,6 +126,7 @@ export function useRealtimeRoom(roomSlug) {
     joinedRoomRef.current = null;
     setRoomState({ joined: false, roomName: null, error: null });
     setPresenceIds([]);
+    setPresenceUsers([]);
   }, []);
 
   useEffect(() => {
@@ -181,13 +185,17 @@ export function useRealtimeRoom(roomSlug) {
 
     const onPresence = (payload) => {
       if (payload?.room !== roomSlug) return;
-      setPresenceIds(payload.onlineUserIds ?? []);
+      const users = payload.onlineUsers ?? (payload.onlineUserIds ?? []).map((id) => ({ id }));
+      setPresenceUsers(users);
+      setPresenceIds(users.map((user) => user.id));
     };
 
     const onJoined = (payload) => {
       if (payload?.room !== roomSlug) return;
       setRoomState((prev) => ({ ...prev, joined: true, roomName: payload.roomName ?? null }));
-      setPresenceIds((payload.presence ?? []).map((item) => item.id));
+      const users = payload.presence ?? [];
+      setPresenceUsers(users);
+      setPresenceIds(users.map((item) => item.id));
     };
 
     const onLeft = (payload) => {
@@ -288,6 +296,7 @@ export function useRealtimeRoom(roomSlug) {
     connectionStatus,
     room: roomState,
     presenceIds,
+    presenceUsers,
     messages,
     sendMessage,
     retryMessage,

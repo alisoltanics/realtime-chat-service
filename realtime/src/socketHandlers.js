@@ -13,7 +13,7 @@
  *   message:new        { room, message }      (fanned out to the room, incl. sender)
  *   message:ack        { clientId, message }  (sender only; reconciles optimistic bubble)
  *   message:error      { clientId?, code }
- *   presence:update    { room, onlineUserIds, onlineCount }
+ *   presence:update    { room, onlineUserIds, onlineUsers, onlineCount }
  *   room:left          { room }
  *   session:expired    {}                    (token no longer valid)
  *   error              { event, code }
@@ -69,7 +69,7 @@ function sanitizeClientId(raw) {
  * session user id and JS ids arrive as strings from the API, so a numeric id
  * would silently break presence matching.
  */
-const presencePayload = (userIds) => userIds.map((id) => ({ id: String(id) }));
+const presencePayload = (users) => users.map((user) => ({ ...user, id: String(user.id) }));
 const presenceIdsPayload = (userIds) => userIds.map((id) => String(id));
 
 export function registerSocketHandlers(io, socket, options) {
@@ -92,6 +92,7 @@ export function registerSocketHandlers(io, socket, options) {
     io.to(roomChannel(roomSlug)).emit(EVENTS.PRESENCE, {
       room: roomSlug,
       onlineUserIds: presenceIdsPayload(onlineUserIds),
+      onlineUsers: presencePayload(presence.onlineUsers(roomSlug)),
       onlineCount: onlineUserIds.length,
     });
   };
@@ -136,8 +137,9 @@ export function registerSocketHandlers(io, socket, options) {
 
       await socket.join(roomChannel(room.slug));
       socket.data.rooms.set(room.slug, { roomId: room.id, roomName: room.name });
-      const entry = presence.addConnection(user.id, socket.id, room.slug);
+      const entry = presence.addConnection(user.id, socket.id, room.slug, user);
       const onlineUserIds = presence.onlineUserIds(room.slug);
+      const onlineUsers = presence.onlineUsers(room.slug);
 
       log.info(
         { event: EVENTS.JOIN, roomSlug, userId: user.id, socketCount: entry.sockets.size },
@@ -147,9 +149,9 @@ export function registerSocketHandlers(io, socket, options) {
         room: room.slug,
         roomId: room.id,
         roomName: room.name,
-        presence: presencePayload(onlineUserIds),
+        presence: presencePayload(onlineUsers),
       });
-      respond({ ok: true, room: room.slug, presence: presencePayload(onlineUserIds) });
+      respond({ ok: true, room: room.slug, presence: presencePayload(onlineUsers) });
       broadcastPresence(room.slug);
     })
   );

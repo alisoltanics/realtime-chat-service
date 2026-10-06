@@ -18,17 +18,24 @@ const socketUser = new Map();
 
 let sweeper = null;
 
-function ensureUser(userId) {
+function ensureUser(userId, profile = null) {
   let entry = users.get(userId);
   if (!entry) {
-    entry = { sockets: new Set(), rooms: new Set(), lastSeen: Date.now() };
+    entry = { sockets: new Set(), rooms: new Set(), lastSeen: Date.now(), profile: null };
     users.set(userId, entry);
+  }
+  if (profile) {
+    entry.profile = {
+      id: String(userId),
+      username: profile.username ?? "",
+      display_name: profile.display_name || profile.username || "",
+    };
   }
   return entry;
 }
 
-export function addConnection(userId, socketId, roomSlug) {
-  ensureUser(userId).sockets.add(socketId);
+export function addConnection(userId, socketId, roomSlug, profile = null) {
+  ensureUser(userId, profile).sockets.add(socketId);
   socketUser.set(socketId, userId);
   if (roomSlug) addRoomMembership(userId, roomSlug);
   return users.get(userId);
@@ -84,6 +91,13 @@ export function touch(userId) {
 
 export function onlineUserIds(roomSlug) {
   return Array.from(rooms.get(roomSlug) ?? []);
+}
+
+export function onlineUsers(roomSlug) {
+  return onlineUserIds(roomSlug).map((userId) => {
+    const profile = users.get(userId)?.profile;
+    return profile ?? { id: String(userId), username: "", display_name: "" };
+  });
 }
 
 export function onlineCount(roomSlug) {

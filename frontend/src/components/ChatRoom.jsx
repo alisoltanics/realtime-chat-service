@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
@@ -11,7 +12,7 @@ import ForumRoundedIcon from "@mui/icons-material/ForumRounded";
 import MessageList from "./MessageList.jsx";
 import PresenceBar from "./PresenceBar.jsx";
 import { useRealtimeRoom } from "../hooks/useRealtimeRoom.js";
-import { messageForCode } from "../lib/api.js";
+import { endpoints, messageForCode } from "../lib/api.js";
 import { getSession } from "../lib/session.js";
 
 export default function ChatRoom({ roomSlug, roomName }) {
@@ -20,6 +21,7 @@ export default function ChatRoom({ roomSlug, roomName }) {
     connectionStatus,
     room,
     presenceIds,
+    presenceUsers,
     messages,
     sendMessage,
     retryMessage,
@@ -30,6 +32,12 @@ export default function ChatRoom({ roomSlug, roomName }) {
     isLoadingMore,
     loadMore,
   } = useRealtimeRoom(roomSlug);
+  const members = useQuery({
+    queryKey: ["room-members", roomSlug],
+    queryFn: ({ signal }) => endpoints.members(getSession()?.access, roomSlug, signal),
+    enabled: Boolean(room.joined),
+    refetchInterval: room.joined ? 30_000 : false,
+  });
 
   const [text, setText] = useState("");
 
@@ -64,7 +72,12 @@ export default function ChatRoom({ roomSlug, roomName }) {
           </Typography>
         </Box>
         <Box sx={{ flexGrow: 1 }} />
-        <PresenceBar onlineIds={presenceIds} joined={room.joined} />
+        <PresenceBar
+          onlineIds={presenceIds}
+          onlineUsers={presenceUsers}
+          members={members.data?.results ?? []}
+          joined={room.joined}
+        />
       </Box>
 
       {room.error && (

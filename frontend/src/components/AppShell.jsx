@@ -190,6 +190,7 @@ export default function AppShell({ session, onLogout }) {
         <Box
           component="aside"
           className="room-sidebar"
+          dir="rtl"
           sx={{
             width: DRAWER_WIDTH,
             flexShrink: 0,
@@ -242,6 +243,7 @@ export default function AppShell({ session, onLogout }) {
                     {room.name.slice(0, 1)}
                   </Avatar>
                   <ListItemText
+                    sx={{ direction: "rtl", textAlign: "right" }}
                     primary={room.name}
                     secondary={
                       room.last_message

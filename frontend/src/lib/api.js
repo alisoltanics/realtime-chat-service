@@ -93,6 +93,7 @@ export const endpoints = {
   rooms: (token, signal) => apiFetch("/api/v1/rooms/", { token, signal }),
   createRoom: (token, payload) => apiFetch("/api/v1/rooms/", { method: "POST", body: payload, token }),
   room: (token, slug, signal) => apiFetch(`/api/v1/rooms/${slug}/`, { token, signal }),
+  members: (token, slug, signal) => apiFetch(`/api/v1/rooms/${slug}/members/`, { token, signal }),
   joinRoom: (token, slug) => apiFetch(`/api/v1/rooms/${slug}/join/`, { method: "POST", token }),
   leaveRoom: (token, slug) => apiFetch(`/api/v1/rooms/${slug}/leave/`, { method: "POST", token }),
   messages: (token, slug, { beforeId, limit = 30, signal } = {}) => {

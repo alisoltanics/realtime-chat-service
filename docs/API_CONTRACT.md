@@ -172,7 +172,7 @@ io(SOCKET_URL, { auth: { token: accessToken } });
 
 | رویداد | payload | ack موفق |
 |--------|---------|----------|
-| `room:join` | `{room: "<slug>"}` | `{ok:true, room, presence: [{id:"1"}]}` |
+| `room:join` | `{room: "<slug>"}` | `{ok:true, room, presence: [{id:"1", username:"ali", display_name:"علی"}]}` |
 | `room:leave` | `{room: "<slug>"}` | `{ok:true, left: true}` |
 | `message:send` | `{room, text, clientId}` | `{ok:true, message}` |
 | `presence:heartbeat` | `{}` | `{ok:true}` |
@@ -187,17 +187,17 @@ io(SOCKET_URL, { auth: { token: accessToken } });
 
 | رویداد | payload |
 |--------|---------|
-| `room:joined` | `{room, roomId, roomName, presence: [{id:"1"}]}` |
+| `room:joined` | `{room, roomId, roomName, presence: [{id:"1", username:"ali", display_name:"علی"}]}` |
 | `room:left` | `{room}` |
 | `message:new` | `{room, message}` |
 | `message:ack` | `{clientId, message}` (فقط برای فرستنده) |
 | `message:error` | `{clientId?, code}` |
-| `presence:update` | `{room, onlineUserIds: ["1","2"], onlineCount}` |
+| `presence:update` | `{room, onlineUserIds: ["1","2"], onlineUsers: [{id, username, display_name}], onlineCount}` |
 | `presence:tick` | `{at}` |
 | `session:expired` | `{}` |
 | `error` | `{event, code}` |
 
-در رویداد `room:joined`، مقدار `presence` آرایه‌ای از شیءهای `{id}` است. در `presence:update`، مقدار `onlineUserIds` آرایه‌ای از رشته‌هاست.
+رویدادهای حضور، شناسه، نام کاربری و نام نمایشی افراد آنلاین را می‌فرستند. `onlineUserIds` هم برای سازگاری کلاینت‌های قبلی حفظ شده است.
 
 ### شکل پیام
 
